@@ -54388,20 +54388,40 @@ return {};
 })();
 })();
 </script><script>
-/* Embedded article wheel scroll fallback */
+/* 100yen-quest: connect the existing 3D scroll to article scroll */
 (() => {
   if (window.parent === window) return;
-  window.addEventListener('wheel', event => {
+  const parentOrigin = (() => {
+    try { return new URL(document.referrer).origin; } catch (_) { return '*'; }
+  })();
+  const send = (data) => window.parent.postMessage(data, parentOrigin);
+  function reportHeight() {
+    const height = Math.max(
+      document.documentElement.scrollHeight,
+      document.body ? document.body.scrollHeight : 0
+    );
+    send({type:'yen100-height',height});
+  }
+  window.addEventListener('message', (event) => {
+    if (event.source !== window.parent) return;
+    if (event.data?.type === 'yen100-set-scroll') {
+      const y = Number(event.data.y);
+      if (Number.isFinite(y)) window.scrollTo({top:y,behavior:'instant'});
+    }
+    if (event.data?.type === 'yen100-request-height') reportHeight();
+  });
+  window.addEventListener('wheel', (event) => {
     if (document.getElementById('game')?.classList.contains('open')) return;
-    const page = document.scrollingElement || document.documentElement;
-    const max = Math.max(0, page.scrollHeight - innerHeight);
-    if (max < 2) return;
-    const delta = event.deltaY * (event.deltaMode === 1 ? 18 : event.deltaMode === 2 ? innerHeight : 1);
-    const next = Math.max(0, Math.min(max, page.scrollTop + delta));
-    if (Math.abs(next - page.scrollTop) < .5) return;
     event.preventDefault();
-    window.scrollTo({top:next,behavior:'instant'});
+    const multiplier = event.deltaMode === 1 ? 18 : event.deltaMode === 2 ? innerHeight : 1;
+    send({type:'yen100-wheel',deltaY:event.deltaY * multiplier});
   }, {passive:false,capture:true});
+  window.addEventListener('load', reportHeight);
+  window.addEventListener('resize', reportHeight);
+  if (document.fonts?.ready) document.fonts.ready.then(reportHeight);
+  const observer = new ResizeObserver(reportHeight);
+  observer.observe(document.body);
+  reportHeight();
 })();
 </script>
 </body></html>
