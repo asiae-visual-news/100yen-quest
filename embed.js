@@ -1,5 +1,5 @@
 
-/* 100yen-quest | emergency native viewport fallback */
+/* 100yen-quest | native iframe + fullbleed correction | v14 */
 (() => {
   const script = document.currentScript;
   const target = document.getElementById('yen100-quest');
@@ -13,14 +13,28 @@
   frame.title = '100엔 장보기 비주얼뉴스';
   frame.loading = 'eager';
   frame.setAttribute('allow', 'fullscreen');
+  frame.setAttribute('scrolling', 'no');
 
   frame.style.cssText =
-    'display:block;width:100%;height:100vh;' +
-    'height:100dvh;border:0;background:#0d1626;';
+    'display:block!important;' +
+    'width:100%!important;' +
+    'max-width:none!important;' +
+    'height:100vh!important;' +
+    'height:100dvh!important;' +
+    'border:0!important;' +
+    'background:#0d1626;';
 
   target.style.cssText =
-    'display:block;position:relative;width:100vw;' +
-    'max-width:none;margin:0;padding:0;overflow:hidden;';
+    'display:block!important;' +
+    'position:relative!important;' +
+    'box-sizing:border-box!important;' +
+    'width:100vw!important;' +
+    'max-width:none!important;' +
+    'margin:0!important;' +
+    'padding:0!important;' +
+    'overflow:visible!important;' +
+    'float:none!important;' +
+    'clear:both!important;';
 
   target.appendChild(frame);
 
@@ -38,10 +52,46 @@
     );
   };
 
-  function updateWidth() {
-    target.style.left = '0px';
+  function align() {
+    let p = target.parentElement;
+
+    for (
+      let n = 0;
+      p && p !== document.body && n < 15;
+      n++, p = p.parentElement
+    ) {
+      const s = getComputedStyle(p);
+
+      if (['hidden', 'clip'].includes(s.overflowX)) {
+        p.style.setProperty(
+          'overflow-x',
+          'visible',
+          'important'
+        );
+      }
+    }
+
+    target.style.setProperty(
+      'left', '0px', 'important'
+    );
+
+    target.style.setProperty(
+      'width',
+      document.documentElement.clientWidth + 'px',
+      'important'
+    );
+
     const x = target.getBoundingClientRect().left;
-    target.style.left = (-x) + 'px';
+
+    target.style.setProperty(
+      'left',
+      (-x) + 'px',
+      'important'
+    );
+
+    frame.style.setProperty(
+      'width', '100%', 'important'
+    );
   }
 
   window.addEventListener('message', e => {
@@ -57,6 +107,7 @@
         0,
         Number(d.height || 0) - frame.clientHeight
       );
+
       send();
 
     } else if (d.type === 'yen100-wheel') {
@@ -86,9 +137,17 @@
       { type: 'yen100-request-height' },
       url.origin
     );
+
     send();
   });
 
-  window.addEventListener('resize', updateWidth);
-  updateWidth();
+  window.addEventListener(
+    'resize',
+    align,
+    { passive: true }
+  );
+
+  align();
+  requestAnimationFrame(align);
+  setTimeout(align, 300);
 })();
