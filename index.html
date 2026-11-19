@@ -54387,4 +54387,34 @@ initGame();
 return {};
 })();
 })();
-</script></body></html>
+</script>
+<script>
+/* Continue scrolling the article at iframe boundaries */
+(() => {
+  if (window.parent === window) return;
+
+  window.addEventListener('wheel', (event) => {
+    const page = document.scrollingElement ||
+                 document.documentElement;
+
+    const atTop = page.scrollTop <= 1;
+    const atBottom =
+      page.scrollTop + page.clientHeight >=
+      page.scrollHeight - 2;
+
+    if (
+      (event.deltaY < 0 && atTop) ||
+      (event.deltaY > 0 && atBottom)
+    ) {
+      window.parent.postMessage({
+        type: 'yen100-scroll-edge',
+        deltaY: event.deltaY,
+        deltaX: event.deltaX
+      }, '*');
+
+      event.preventDefault();
+    }
+  }, { passive: false });
+})();
+</script>
+</body></html>
