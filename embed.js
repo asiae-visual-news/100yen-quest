@@ -8,15 +8,20 @@
   target.dataset.yenMounted='1';
   // Keep the insertion point as a height placeholder in the article.
   // Mount the actual visual under <body> to escape narrow/overflow-hidden article wrappers.
-  const inEditor=!!target.closest('[contenteditable="true"],.cke_editable,.fr-element,.note-editable');
+  // Always portal the visual to the editor/page body, including contenteditable.
+  // The original article location remains as a height-only scroll placeholder.
   const placeholder=document.createElement('div');
   placeholder.setAttribute('aria-hidden','true');
-  placeholder.style.cssText='display:block;width:100%;height:760px;pointer-events:none;';
+  placeholder.style.cssText='display:block!important;width:100%!important;height:760px;pointer-events:none;';
   target.parentNode.insertBefore(placeholder,target);
-  if(!inEditor)document.body.appendChild(target);
-  target.style.cssText=inEditor
-    ? 'display:block;width:100%;min-height:650px;position:relative;max-width:none;'
-    : 'display:block;position:absolute;left:0;top:0;width:100vw;max-width:none;margin:0;z-index:1;';;
+  document.body.appendChild(target);
+  target.style.setProperty('display','block','important');
+  target.style.setProperty('position','absolute','important');
+  target.style.setProperty('max-width','none','important');
+  target.style.setProperty('margin','0','important');
+  target.style.setProperty('padding','0','important');
+  target.style.setProperty('box-sizing','border-box','important');
+  target.style.setProperty('z-index','10','important');
   const shadow=target.attachShadow({mode:'open'});
   const root=document.createElement('div');root.className='quest-root';shadow.append(root);
   const fix=(html)=>html.replace(/(src|href)=(['"])(?!https?:|data:|#|\/)([^'"]+)\2/g,(_,a,q,p)=>`${a}=${q}${new URL(p,base).href}${q}`);
@@ -35,18 +40,22 @@
     // Position the body-level visual exactly where the article placeholder is.
     // Unlike margin-left based bleed, this does not oscillate or clip at article boundaries.
     const align=()=>{
-      const height=Math.max(root.getBoundingClientRect().height,root.scrollHeight,650);
-      placeholder.style.height=Math.ceil(height)+'px';
-      if(inEditor)return;
+      const docWidth=document.documentElement.clientWidth;
       const bodyRect=document.body.getBoundingClientRect();
       const slotRect=placeholder.getBoundingClientRect();
-      target.style.left=(-bodyRect.left)+'px';
-      target.style.top=(slotRect.top-bodyRect.top)+'px';
-      target.style.width=document.documentElement.clientWidth+'px';
+      const height=Math.max(root.scrollHeight,root.getBoundingClientRect().height,650);
+      if(Math.abs(placeholder.offsetHeight-height)>2)placeholder.style.height=Math.ceil(height)+'px';
+      // Body-relative absolute coordinates work in both the editor document
+      // and the published article, even when the article column is narrow.
+      target.style.setProperty('left',(-bodyRect.left)+'px','important');
+      target.style.setProperty('top',(slotRect.top-bodyRect.top)+'px','important');
+      target.style.setProperty('width',docWidth+'px','important');
     };
     align();
+    document.fonts?.ready?.then(align);
     window.addEventListener('resize',align,{passive:true});
     if(window.ResizeObserver)new ResizeObserver(align).observe(root);
+    window.addEventListener('scroll',align,{passive:true});
     // Font/image layout may settle after initial paint.
     shadow.querySelectorAll('img').forEach(img=>img.addEventListener('load',align,{once:true}));
   }).catch(err=>{console.error('[100yen-quest] load:',err);root.innerHTML='<p style="padding:24px;font-family:sans-serif">게임을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p>'});
