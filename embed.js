@@ -1,9 +1,10 @@
-/* 100yen-quest | full bleed + single article scroll */
+/* 100yen-quest | article scroll, fixed viewport overlay | v7 */
 (() => {
   const script = document.currentScript;
   const target = document.getElementById('yen100-quest');
   if (!script || !target || target.dataset.loaded) return;
   target.dataset.loaded = '1';
+
   const src = new URL('index.html', script.src);
   const origin = src.origin;
   const frame = document.createElement('iframe');
@@ -12,68 +13,112 @@
   frame.loading = 'eager';
   frame.setAttribute('allow', 'fullscreen');
   frame.setAttribute('scrolling', 'no');
-  frame.style.cssText = 'display:block;position:sticky;top:0;width:100%;height:100vh;height:100dvh;border:0;background:#0d1626;';
-  target.style.cssText = 'display:block!important;position:relative!important;box-sizing:border-box!important;width:100vw!important;max-width:none!important;min-width:0!important;margin:0!important;padding:0!important;float:none!important;clear:both!important;overflow:visible!important;';
-  target.appendChild(frame);
+
+  // The article's layout/overflow rules can break position:sticky.
+  // Keep the 3D viewport attached to BODY and use the article element
+  // only as a tall scroll track. This preserves the iframe viewport height.
+  frame.style.cssText = [
+    'display:block', 'position:fixed', 'top:0', 'left:0',
+    'width:100vw', 'height:100vh', 'height:100dvh',
+    'border:0', 'margin:0', 'padding:0',
+    'background:#0d1626', 'z-index:50',
+    'visibility:hidden', 'pointer-events:none'
+  ].join(';') + ';';
+  document.body.appendChild(frame);
+
+  target.style.cssText = [
+    'display:block!important', 'position:relative!important',
+    'box-sizing:border-box!important', 'width:100vw!important',
+    'max-width:none!important', 'min-width:0!important',
+    'height:100vh!important', 'min-height:100vh!important',
+    'margin:0!important', 'padding:0!important',
+    'float:none!important', 'clear:both!important',
+    'overflow:visible!important'
+  ].join(';') + ';';
+
   let contentHeight = 0;
-  let scheduled = false;
-  const viewport = () => document.documentElement.clientHeight || window.innerHeight;
+  let queued = false;
+  const vh = () => window.innerHeight || document.documentElement.clientHeight;
+  const vw = () => document.documentElement.clientWidth || window.innerWidth;
+
   function unlockParents() {
-    let p = target.parentElement, n = 0;
-    while (p && p !== document.body && n++ < 15) {
+    let p = target.parentElement, count = 0;
+    while (p && p !== document.body && count++ < 15) {
       const s = getComputedStyle(p);
-      if (['hidden','clip'].includes(s.overflowX) || ['hidden','clip'].includes(s.overflow)) {
-        p.style.setProperty('overflow-x', 'visible', 'important');
-        if (['hidden','clip'].includes(s.overflowY)) p.style.setProperty('overflow-y', 'visible', 'important');
+      if (['hidden','clip'].includes(s.overflowX) ||
+          ['hidden','clip'].includes(s.overflow)) {
+        p.style.setProperty('overflow-x','visible','important');
+        if (['hidden','clip'].includes(s.overflowY))
+          p.style.setProperty('overflow-y','visible','important');
       }
       p = p.parentElement;
     }
   }
+
   function align() {
     unlockParents();
-    const width = document.documentElement.clientWidth || window.innerWidth;
-    target.style.setProperty('left', '0px', 'important');
-    target.style.setProperty('width', width + 'px', 'important');
+    target.style.setProperty('left','0px','important');
+    target.style.setProperty('width',vw()+'px','important');
     const x = target.getBoundingClientRect().left;
-    if (Math.abs(x) > .5) target.style.setProperty('left', -x + 'px', 'important');
-    if (contentHeight) target.style.setProperty('height', Math.max(contentHeight,viewport()) + 'px', 'important');
+    if (Math.abs(x) > .5)
+      target.style.setProperty('left',(-x)+'px','important');
+    frame.style.width = vw()+'px';
+    frame.style.height = vh()+'px';
+    if (contentHeight)
+      target.style.setProperty('height',Math.max(contentHeight,vh())+'px','important');
     sync();
   }
+
   function sync() {
-    if (!frame.contentWindow) return;
-    const top = target.getBoundingClientRect().top;
-    const max = Math.max(0, contentHeight - viewport());
-    const y = Math.min(max, Math.max(0, -top));
-    frame.contentWindow.postMessage({type:'yen100-set-scroll', y, viewportHeight:viewport()}, origin);
+    const rect = target.getBoundingClientRect();
+    const height = vh();
+    const visible = rect.bottom > 0 && rect.top < height;
+    frame.style.visibility = visible ? 'visible' : 'hidden';
+    frame.style.pointerEvents = visible ? 'auto' : 'none';
+    if (!visible) return;
+
+    // At the beginning/end, expose only the portion occupied by the story.
+    const clipTop = Math.max(0,Math.min(height,rect.top));
+    const clipBottom = Math.max(0,Math.min(height,height-rect.bottom));
+    frame.style.clipPath = `inset(${clipTop}px 0px ${clipBottom}px 0px)`;
+    const max = Math.max(0,contentHeight-height);
+    const y = Math.max(0,Math.min(max,-rect.top));
+    frame.contentWindow?.postMessage(
+      {type:'yen100-set-scroll',y,viewportHeight:height},origin
+    );
   }
+
   function queueSync() {
-    if (scheduled) return;
-    scheduled = true;
-    requestAnimationFrame(() => { scheduled = false; sync(); });
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; sync(); });
   }
-  window.addEventListener('message', (event) => {
+
+  window.addEventListener('message',event => {
     if (event.source !== frame.contentWindow || event.origin !== origin) return;
-    const d = event.data || {};
-    if (d.type === 'yen100-height') {
-      const h = Number(d.height);
-      if (!Number.isFinite(h) || h < 1) return;
-      contentHeight = Math.min(h, 200000);
-      target.style.setProperty('height', Math.max(contentHeight,viewport()) + 'px', 'important');
+    const data = event.data || {};
+    if (data.type === 'yen100-height') {
+      const height = Number(data.height);
+      if (!Number.isFinite(height) || height < 1) return;
+      contentHeight = Math.min(height,200000);
+      target.style.setProperty('height',Math.max(contentHeight,vh())+'px','important');
       queueSync();
-    } else if (d.type === 'yen100-wheel') {
-      const delta = Number(d.deltaY);
-      if (Number.isFinite(delta)) window.scrollBy(0, Math.max(-1500, Math.min(1500, delta)));
+    } else if (data.type === 'yen100-wheel') {
+      const delta = Number(data.deltaY);
+      if (Number.isFinite(delta))
+        window.scrollBy(0,Math.max(-1500,Math.min(1500,delta)));
     }
   });
-  frame.addEventListener('load', () => {
-    frame.contentWindow.postMessage({type:'yen100-request-height'}, origin);
+
+  frame.addEventListener('load',() => {
+    frame.contentWindow?.postMessage({type:'yen100-request-height'},origin);
     align();
   });
-  window.addEventListener('scroll', queueSync, {passive:true});
-  window.addEventListener('resize', align, {passive:true});
-  window.addEventListener('orientationchange', align, {passive:true});
+  window.addEventListener('scroll',queueSync,{passive:true});
+  window.addEventListener('resize',align,{passive:true});
+  window.addEventListener('orientationchange',align,{passive:true});
   align();
   requestAnimationFrame(align);
-  setTimeout(align, 300);
-  setTimeout(align, 1000);
+  setTimeout(align,300);
+  setTimeout(align,1000);
 })();
