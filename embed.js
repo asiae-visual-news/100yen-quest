@@ -1,4 +1,5 @@
-/* 100yen-quest | article scroll, fixed viewport overlay | v7 */
+
+/* 100yen-quest | article scroll, natural outro exit | v8 */
 (() => {
   const script = document.currentScript;
   const target = document.getElementById('yen100-quest');
@@ -14,9 +15,7 @@
   frame.setAttribute('allow', 'fullscreen');
   frame.setAttribute('scrolling', 'no');
 
-  // The article's layout/overflow rules can break position:sticky.
-  // Keep the 3D viewport attached to BODY and use the article element
-  // only as a tall scroll track. This preserves the iframe viewport height.
+  // Keep the 3D viewport fixed while the article scrolls.
   frame.style.cssText = [
     'display:block', 'position:fixed', 'top:0', 'left:0',
     'width:100vw', 'height:100vh', 'height:100dvh',
@@ -38,87 +37,174 @@
 
   let contentHeight = 0;
   let queued = false;
-  const vh = () => window.innerHeight || document.documentElement.clientHeight;
-  const vw = () => document.documentElement.clientWidth || window.innerWidth;
+
+  const vh = () =>
+    window.innerHeight || document.documentElement.clientHeight;
+
+  const vw = () =>
+    document.documentElement.clientWidth || window.innerWidth;
 
   function unlockParents() {
-    let p = target.parentElement, count = 0;
+    let p = target.parentElement;
+    let count = 0;
+
     while (p && p !== document.body && count++ < 15) {
       const s = getComputedStyle(p);
-      if (['hidden','clip'].includes(s.overflowX) ||
-          ['hidden','clip'].includes(s.overflow)) {
-        p.style.setProperty('overflow-x','visible','important');
-        if (['hidden','clip'].includes(s.overflowY))
-          p.style.setProperty('overflow-y','visible','important');
+
+      if (
+        ['hidden', 'clip'].includes(s.overflowX) ||
+        ['hidden', 'clip'].includes(s.overflow)
+      ) {
+        p.style.setProperty(
+          'overflow-x', 'visible', 'important'
+        );
+
+        if (['hidden', 'clip'].includes(s.overflowY)) {
+          p.style.setProperty(
+            'overflow-y', 'visible', 'important'
+          );
+        }
       }
+
       p = p.parentElement;
     }
   }
 
   function align() {
     unlockParents();
-    target.style.setProperty('left','0px','important');
-    target.style.setProperty('width',vw()+'px','important');
+
+    target.style.setProperty('left', '0px', 'important');
+    target.style.setProperty('width', vw() + 'px', 'important');
+
     const x = target.getBoundingClientRect().left;
-    if (Math.abs(x) > .5)
-      target.style.setProperty('left',(-x)+'px','important');
-    frame.style.width = vw()+'px';
-    frame.style.height = vh()+'px';
-    if (contentHeight)
-      target.style.setProperty('height',Math.max(contentHeight,vh())+'px','important');
+
+    if (Math.abs(x) > 0.5) {
+      target.style.setProperty(
+        'left', (-x) + 'px', 'important'
+      );
+    }
+
+    frame.style.width = vw() + 'px';
+    frame.style.height = vh() + 'px';
+
+    if (contentHeight) {
+      target.style.setProperty(
+        'height',
+        Math.max(contentHeight, vh()) + 'px',
+        'important'
+      );
+    }
+
     sync();
   }
 
   function sync() {
     const rect = target.getBoundingClientRect();
     const height = vh();
-    const visible = rect.bottom > 0 && rect.top < height;
-    frame.style.visibility = visible ? 'visible' : 'hidden';
-    frame.style.pointerEvents = visible ? 'auto' : 'none';
+
+    const visible =
+      rect.bottom > 0 && rect.top < height;
+
+    frame.style.visibility =
+      visible ? 'visible' : 'hidden';
+
+    frame.style.pointerEvents =
+      visible ? 'auto' : 'none';
+
     if (!visible) return;
 
-    // At the beginning/end, expose only the portion occupied by the story.
-    const clipTop = Math.max(0,Math.min(height,rect.top));
-    const clipBottom = Math.max(0,Math.min(height,height-rect.bottom));
-    frame.style.clipPath = `inset(${clipTop}px 0px ${clipBottom}px 0px)`;
-    const max = Math.max(0,contentHeight-height);
-    const y = Math.max(0,Math.min(max,-rect.top));
+    // Let the final outro move upward naturally.
+    const offset = rect.top > 0
+      ? Math.min(height, rect.top)
+      : rect.bottom < height
+        ? Math.max(-height, rect.bottom - height)
+        : 0;
+
+    frame.style.top = offset + 'px';
+    frame.style.clipPath = 'none';
+
+    const max = Math.max(0, contentHeight - height);
+    const y = Math.max(0, Math.min(max, -rect.top));
+
     frame.contentWindow?.postMessage(
-      {type:'yen100-set-scroll',y,viewportHeight:height},origin
+      {
+        type: 'yen100-set-scroll',
+        y,
+        viewportHeight: height
+      },
+      origin
     );
   }
 
   function queueSync() {
     if (queued) return;
+
     queued = true;
-    requestAnimationFrame(() => { queued = false; sync(); });
+
+    requestAnimationFrame(() => {
+      queued = false;
+      sync();
+    });
   }
 
-  window.addEventListener('message',event => {
-    if (event.source !== frame.contentWindow || event.origin !== origin) return;
+  window.addEventListener('message', event => {
+    if (
+      event.source !== frame.contentWindow ||
+      event.origin !== origin
+    ) return;
+
     const data = event.data || {};
+
     if (data.type === 'yen100-height') {
       const height = Number(data.height);
+
       if (!Number.isFinite(height) || height < 1) return;
-      contentHeight = Math.min(height,200000);
-      target.style.setProperty('height',Math.max(contentHeight,vh())+'px','important');
+
+      contentHeight = Math.min(height, 200000);
+
+      target.style.setProperty(
+        'height',
+        Math.max(contentHeight, vh()) + 'px',
+        'important'
+      );
+
       queueSync();
+
     } else if (data.type === 'yen100-wheel') {
       const delta = Number(data.deltaY);
-      if (Number.isFinite(delta))
-        window.scrollBy(0,Math.max(-1500,Math.min(1500,delta)));
+
+      if (Number.isFinite(delta)) {
+        window.scrollBy(
+          0,
+          Math.max(-1500, Math.min(1500, delta))
+        );
+      }
     }
   });
 
-  frame.addEventListener('load',() => {
-    frame.contentWindow?.postMessage({type:'yen100-request-height'},origin);
+  frame.addEventListener('load', () => {
+    frame.contentWindow?.postMessage(
+      { type: 'yen100-request-height' },
+      origin
+    );
+
     align();
   });
-  window.addEventListener('scroll',queueSync,{passive:true});
-  window.addEventListener('resize',align,{passive:true});
-  window.addEventListener('orientationchange',align,{passive:true});
+
+  window.addEventListener('scroll', queueSync, {
+    passive: true
+  });
+
+  window.addEventListener('resize', align, {
+    passive: true
+  });
+
+  window.addEventListener('orientationchange', align, {
+    passive: true
+  });
+
   align();
   requestAnimationFrame(align);
-  setTimeout(align,300);
-  setTimeout(align,1000);
+  setTimeout(align, 300);
+  setTimeout(align, 1000);
 })();
