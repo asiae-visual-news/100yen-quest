@@ -100,4 +100,20 @@
 
   window.addEventListener('resize', alignFullBleed);
   window.addEventListener('orientationchange', alignFullBleed);
+
+// Let the article continue scrolling when the iframe
+// reaches its first or last scene.
+window.addEventListener('message', (event) => {
+  if (event.source !== frame.contentWindow) return;
+  if (event.origin !== new URL(frame.src).origin) return;
+
+  const data = event.data;
+  if (!data || data.type !== 'yen100-scroll-edge') return;
+
+  window.scrollBy({
+    top: Number(data.deltaY) || 0,
+    left: 0,
+    behavior: 'instant'
+  });
+});
 })();
