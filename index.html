@@ -54387,34 +54387,21 @@ initGame();
 return {};
 })();
 })();
-</script>
-<script>
-/* Continue scrolling the article at iframe boundaries */
+</script><script>
+/* Embedded article wheel scroll fallback */
 (() => {
   if (window.parent === window) return;
-
-  window.addEventListener('wheel', (event) => {
-    const page = document.scrollingElement ||
-                 document.documentElement;
-
-    const atTop = page.scrollTop <= 1;
-    const atBottom =
-      page.scrollTop + page.clientHeight >=
-      page.scrollHeight - 2;
-
-    if (
-      (event.deltaY < 0 && atTop) ||
-      (event.deltaY > 0 && atBottom)
-    ) {
-      window.parent.postMessage({
-        type: 'yen100-scroll-edge',
-        deltaY: event.deltaY,
-        deltaX: event.deltaX
-      }, '*');
-
-      event.preventDefault();
-    }
-  }, { passive: false });
+  window.addEventListener('wheel', event => {
+    if (document.getElementById('game')?.classList.contains('open')) return;
+    const page = document.scrollingElement || document.documentElement;
+    const max = Math.max(0, page.scrollHeight - innerHeight);
+    if (max < 2) return;
+    const delta = event.deltaY * (event.deltaMode === 1 ? 18 : event.deltaMode === 2 ? innerHeight : 1);
+    const next = Math.max(0, Math.min(max, page.scrollTop + delta));
+    if (Math.abs(next - page.scrollTop) < .5) return;
+    event.preventDefault();
+    window.scrollTo({top:next,behavior:'instant'});
+  }, {passive:false,capture:true});
 })();
 </script>
 </body></html>
