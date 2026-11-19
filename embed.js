@@ -1,153 +1,120 @@
-
-/* 100yen-quest | native iframe + fullbleed correction | v14 */
+/* 100yen-quest | article scroll, fixed viewport overlay | v7 */
 (() => {
   const script = document.currentScript;
   const target = document.getElementById('yen100-quest');
   if (!script || !target || target.dataset.loaded) return;
   target.dataset.loaded = '1';
 
-  const url = new URL('index.html', script.src);
+  const src = new URL('index.html', script.src);
+  const origin = src.origin;
   const frame = document.createElement('iframe');
-
-  frame.src = url.href;
+  frame.src = src.href;
   frame.title = '100엔 장보기 비주얼뉴스';
   frame.loading = 'eager';
   frame.setAttribute('allow', 'fullscreen');
   frame.setAttribute('scrolling', 'no');
 
-  frame.style.cssText =
-    'display:block!important;' +
-    'width:100%!important;' +
-    'max-width:none!important;' +
-    'height:100vh!important;' +
-    'height:100dvh!important;' +
-    'border:0!important;' +
-    'background:#0d1626;';
+  frame.style.cssText = [
+    'display:block', 'position:fixed', 'top:0', 'left:0',
+    'width:100vw', 'height:100vh', 'height:100dvh',
+    'border:0', 'margin:0', 'padding:0',
+    'background:#0d1626', 'z-index:50',
+    'visibility:hidden', 'pointer-events:none'
+  ].join(';') + ';';
+  document.body.appendChild(frame);
 
-  target.style.cssText =
-    'display:block!important;' +
-    'position:relative!important;' +
-    'box-sizing:border-box!important;' +
-    'width:100vw!important;' +
-    'max-width:none!important;' +
-    'margin:0!important;' +
-    'padding:0!important;' +
-    'overflow:visible!important;' +
-    'float:none!important;' +
-    'clear:both!important;';
+  target.style.cssText = [
+    'display:block!important', 'position:relative!important',
+    'box-sizing:border-box!important', 'width:100vw!important',
+    'max-width:none!important', 'min-width:0!important',
+    'height:100vh!important', 'min-height:100vh!important',
+    'margin:0!important', 'padding:0!important',
+    'float:none!important', 'clear:both!important',
+    'overflow:visible!important'
+  ].join(';') + ';';
 
-  target.appendChild(frame);
+  let contentHeight = 0;
+  let queued = false;
+  const vh = () => window.innerHeight || document.documentElement.clientHeight;
+  const vw = () => document.documentElement.clientWidth || window.innerWidth;
 
-  let y = 0;
-  let max = 0;
-
-  const send = () => {
-    frame.contentWindow?.postMessage(
-      {
-        type: 'yen100-set-scroll',
-        y,
-        viewportHeight: frame.clientHeight
-      },
-      url.origin
-    );
-  };
+  function unlockParents() {
+    let p = target.parentElement, count = 0;
+    while (p && p !== document.body && count++ < 15) {
+      const s = getComputedStyle(p);
+      if (['hidden','clip'].includes(s.overflowX) ||
+          ['hidden','clip'].includes(s.overflow)) {
+        p.style.setProperty('overflow-x','visible','important');
+        if (['hidden','clip'].includes(s.overflowY))
+          p.style.setProperty('overflow-y','visible','important');
+      }
+      p = p.parentElement;
+    }
+  }
 
   function align() {
-    let p = target.parentElement;
-
-    for (
-      let n = 0;
-      p && p !== document.body && n < 15;
-      n++, p = p.parentElement
-    ) {
-      const s = getComputedStyle(p);
-
-      if (['hidden', 'clip'].includes(s.overflowX)) {
-        p.style.setProperty(
-          'overflow-x',
-          'visible',
-          'important'
-        );
-      }
-    }
-
-    target.style.setProperty(
-      'left', '0px', 'important'
-    );
-
-    target.style.setProperty(
-      'width',
-      document.documentElement.clientWidth + 'px',
-      'important'
-    );
-
+    unlockParents();
+    target.style.setProperty('left','0px','important');
+    target.style.setProperty('width',vw()+'px','important');
     const x = target.getBoundingClientRect().left;
+    if (Math.abs(x) > .5)
+      target.style.setProperty('left',(-x)+'px','important');
+    frame.style.width = vw()+'px';
+    frame.style.height = vh()+'px';
+    if (contentHeight)
+      target.style.setProperty('height',Math.max(contentHeight,vh())+'px','important');
+    sync();
+  }
 
-    target.style.setProperty(
-      'left',
-      (-x) + 'px',
-      'important'
-    );
+  function sync() {
+    const rect = target.getBoundingClientRect();
+    const height = vh();
+    const visible = rect.bottom > 0 && rect.top < height;
+    frame.style.visibility = visible ? 'visible' : 'hidden';
+    frame.style.pointerEvents = visible ? 'auto' : 'none';
+    if (!visible) return;
 
-    frame.style.setProperty(
-      'width', '100%', 'important'
+    const clipTop = Math.max(0,Math.min(height,rect.top));
+    const clipBottom = Math.max(0,Math.min(height,height-rect.bottom));
+    frame.style.clipPath = `inset(${clipTop}px 0px ${clipBottom}px 0px)`;
+    const max = Math.max(0,contentHeight-height);
+    const y = Math.max(0,Math.min(max,-rect.top));
+    frame.contentWindow?.postMessage(
+      {type:'yen100-set-scroll',y,viewportHeight:height},origin
     );
   }
 
-  window.addEventListener('message', e => {
-    if (
-      e.source !== frame.contentWindow ||
-      e.origin !== url.origin
-    ) return;
+  function queueSync() {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; sync(); });
+  }
 
-    const d = e.data || {};
-
-    if (d.type === 'yen100-height') {
-      max = Math.max(
-        0,
-        Number(d.height || 0) - frame.clientHeight
-      );
-
-      send();
-
-    } else if (d.type === 'yen100-wheel') {
-      const delta = Math.max(
-        -700,
-        Math.min(700, Number(d.deltaY) || 0)
-      );
-
-      const next = Math.max(
-        0,
-        Math.min(max, y + delta)
-      );
-
-      const overflow = delta - (next - y);
-
-      y = next;
-      send();
-
-      if (overflow) {
-        window.scrollBy(0, overflow);
-      }
+  window.addEventListener('message',event => {
+    if (event.source !== frame.contentWindow || event.origin !== origin) return;
+    const data = event.data || {};
+    if (data.type === 'yen100-height') {
+      const height = Number(data.height);
+      if (!Number.isFinite(height) || height < 1) return;
+      contentHeight = Math.min(height,200000);
+      target.style.setProperty('height',Math.max(contentHeight,vh())+'px','important');
+      queueSync();
+    } else if (data.type === 'yen100-wheel') {
+      const delta = Number(data.deltaY);
+      if (Number.isFinite(delta))
+        window.scrollBy(0,Math.max(-1500,Math.min(1500,delta)));
     }
   });
 
-  frame.addEventListener('load', () => {
-    frame.contentWindow?.postMessage(
-      { type: 'yen100-request-height' },
-      url.origin
-    );
-
-    send();
+  frame.addEventListener('load',() => {
+    frame.contentWindow?.postMessage({type:'yen100-request-height'},origin);
+    align();
   });
-
-  window.addEventListener(
-    'resize',
-    align,
-    { passive: true }
-  );
-
+  window.addEventListener('scroll',queueSync,{passive:true});
+  window.addEventListener('resize',align,{passive:true});
+  window.addEventListener('orientationchange',align,{passive:true});
   align();
   requestAnimationFrame(align);
-  setTimeout(align, 300);
+  setTimeout(align,300);
+  setTimeout(align,1000);
 })();
