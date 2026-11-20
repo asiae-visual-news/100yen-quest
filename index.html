@@ -640,8 +640,23 @@ body{font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif
 @media(max-width:760px){.after .reveal{transform:translate3d(0,20px,0);filter:none}.after .img-slots.reveal,.after .replay-panel.reveal,.after .price-section .receipt.reveal{transition-delay:0s}}
 @media(prefers-reduced-motion:reduce){.after .reveal{opacity:1!important;transform:none!important;filter:none!important;transition:none!important}.after .report-end .outro-mark.seen svg{animation:none!important}}
 </style>
-</head><body>
-<div id="world"></div><div id="vig"></div><div id="progress"></div><div id="dots"></div><div id="hint">SCROLL ↓</div>
+<style>
+/* Company edition: a body-level fixed stage and an empty scroll track. */
+#story-layer{position:fixed;inset:0;z-index:2;isolation:isolate;overflow:hidden;pointer-events:none;contain:layout paint;visibility:hidden}
+#story-layer.is-visible{visibility:visible}
+#story-layer #world,#story-layer #vig,#story-layer #story,#story-layer #dots,#story-layer #hint{position:absolute}
+#story-layer #world{transition:none}
+#story-layer #story{inset:0;height:100%;margin:0}
+#story-layer .beat,#story-layer .beat.first{position:absolute;inset:0;height:100%!important;visibility:hidden;pointer-events:none}
+#story-layer .beat.active{visibility:visible}
+#story-layer .beat .cap{transition:opacity .18s;transform:none!important}
+#story-layer .beat.active .cap>*{animation:none!important}
+#story-layer .cap::after{animation:none!important}
+#story-space{position:relative;pointer-events:none;width:100%}
+#story-space .story-step{display:block;width:100%}
+@media(max-width:760px){#story-layer .cap{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:none!important;background:#0d182aeb}#story-layer .cap.hero{background:none}#story-layer #vig{background:linear-gradient(180deg,#05091655,transparent 35%,#05091677)}#story-layer .beat.first{padding-top:16vh}}
+</style></head><body>
+<div id="story-layer"><div id="world"></div><div id="vig"></div><div id="progress"></div><div id="dots"></div><div id="hint">SCROLL ↓</div>
 <main id="story">
 <section class="beat first"><div class="cap hero"><h1>인형 대신<br/>양파를 뽑는<br/>오락실?!</h1><p>일본의 한 인형뽑기 매장. 그런데 기계 안을 들여다보니 평범한 오락실과는 조금 다릅니다.</p></div></section>
 <section class="beat C"><div class="cap"><h2>인형뽑기 매장에<br/>들어선 ‘슈퍼마켓’</h2><p>일본 사이타마현 교다시의 ‘에브리데이 교다점’.<span class="desktop-break"><br/></span> 식료품과 생활용품을 경품으로 내건<span class="desktop-break"><br/></span> 슈퍼마켓 콘셉트 매장을 선보였습니다.</p></div></section>
@@ -653,7 +668,7 @@ body{font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif
 <section class="beat R coin-beat"><div class="cap"><div class="coin-line"><span class="coin-prefix-text">단돈</span> <strong class="coin-amount">100엔</strong><span class="coin-krw">(약 840원)</span></div><h2>장바구니 대신 든 집게</h2></div></section>
 <section class="beat" id="game-beat"><div class="cap"><h2>이번에는<br/>직접 뽑아볼 차례</h2><p>실제 매장은 초보자와 가족을 위해 난이도를 낮춘 게임기를 여러 대 배치했습니다. 아래 체험에서는 움직이는 경품을 집게로 노려보세요.</p><button class="cta" id="open-game">100엔 인형뽑기 도전하기</button></div></section>
 <section class="beat C"><div class="cap"><h2>달라진 경품,<br/>늘어난 발길</h2><p>매장 관계자는 방문객이 이전보다 <strong class="visitor-count">약 40%</strong> 늘었다고 밝혔습니다.</p></div></section>
-</main>
+</main></div><div id="story-space" aria-hidden="true"></div>
 <div class="after">
 <section class="sec dark replay-section">
 <div class="reveal"><h2>왜 이 매장에<br/>발길이 늘어났을까?</h2><p>장바구니 물가가 부담스러워지면서<span class="desktop-break"><br/></span> 조금이라도 지출을 줄이려는 손님들이 이곳을 찾고 있습니다.<span class="desktop-break"><br/></span> 마트에서 사던 식료품과 생필품을<span class="desktop-break"><br/></span> 경품으로 얻을 수 있다는 기대 때문입니다.</p></div>
@@ -54633,14 +54648,28 @@ function initGame(){
 
 return {initGame};
 })();
+
+(() => {
+ const track=document.getElementById('story-space'),beats=[...document.querySelectorAll('#story .beat')];
+ let width=0;
+ const measure=()=>{
+  if(width===innerWidth&&track.children.length)return;
+  width=innerWidth;const h=innerHeight,mobile=width<=760;
+  track.replaceChildren(...beats.map((beat,i)=>{const step=document.createElement('div');step.className='story-step';step.style.height=Math.round(h*(i===0?(mobile?1.2:1.25):(mobile?1.05:1.1)))+'px';return step}));
+ };
+ measure();addEventListener('resize',measure,{passive:true});
+})();
+
 const storyModule=(()=>{
 const {part,studio}=models,{cabinet}=cabinetModule,{initGame}=arcadeModule;
 
 const $=s=>document.querySelector(s),clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x)),lerp=(a,b,t)=>a+(b-a)*t,sm=t=>t*t*(3-2*t);
 function initStory() {
+const mobile=matchMedia('(max-width:760px)').matches;
+const layer=$('#story-layer'),track=$('#story-space');
 const stage=$('#world'),scene=new THREE.Scene();scene.background=new THREE.Color('#0d1626');scene.fog=new THREE.FogExp2('#0d1626',.009);
-const camera=new THREE.PerspectiveCamera(innerWidth<760?72:58,innerWidth/innerHeight,.1,230),renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
-renderer.setPixelRatio(Math.min(devicePixelRatio,innerWidth<760?1.25:1.5));renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.23;stage.appendChild(renderer.domElement);
+const camera=new THREE.PerspectiveCamera(innerWidth<760?72:58,innerWidth/innerHeight,.1,230),renderer=new THREE.WebGLRenderer({antialias:!mobile,powerPreference:mobile?'low-power':'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,mobile?1:1.5));renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.23;stage.appendChild(renderer.domElement);
 const environment=studio(renderer);scene.environment=environment.texture;
 scene.add(new THREE.HemisphereLight(0xe7f7ff,0x665472,1.5));const sun=new THREE.DirectionalLight(0xffe8d6,1.95);sun.position.set(8,15,14);scene.add(sun);
 for(const [x,z,c] of [[-9,-5,0xffa6cb],[9,-14,0x8feee4],[0,-30,0xffc688],[0,-50,0xa5caff]]){const l=new THREE.PointLight(c,70,36);l.position.set(x,7,z);scene.add(l)}
@@ -54671,15 +54700,24 @@ for(let r=0;r<20;r++)for(let c=0;c<6;c++){
   machines.push(cabinet(scene,(c-2.5)*4.65,4-r*3.55,kind,r*6+c,featured));
 }
 // dust
-const N=320,pa=new Float32Array(N*3);for(let i=0;i<N;i++){pa[i*3]=(Math.random()-.5)*32;pa[i*3+1]=Math.random()*9.5;pa[i*3+2]=10-Math.random()*70}const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pa,3));const dust=new THREE.Points(pg,new THREE.PointsMaterial({color:0xfff1cf,size:.09,transparent:true,opacity:.55,depthWrite:false}));scene.add(dust);
+const N=mobile?60:320,pa=new Float32Array(N*3);for(let i=0;i<N;i++){pa[i*3]=(Math.random()-.5)*32;pa[i*3+1]=Math.random()*9.5;pa[i*3+2]=10-Math.random()*70}const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pa,3));const dust=new THREE.Points(pg,new THREE.PointsMaterial({color:0xfff1cf,size:.09,transparent:true,opacity:.55,depthWrite:false}));scene.add(dust);
 // shots: one per beat
 const shots=[{p:[0,5,13.7],t:[0,5,10]},{p:[0,4.4,7.4],t:[0,3.4,-10]},{p:[0,7.2,5],t:[0,2,-28]},{p:[-4.7,3,-13.6],t:[-6.975,2.5,-17.3]},{p:[2.1,2.9,-13.6],t:[2.325,2.5,-17.3]},{p:[9.4,3,-13.6],t:[11.625,2.5,-17.3]},{p:[3.28,1.27,-14.55],t:[3.165,.89,-16.004]},{p:[0,3.4,-10.5],t:[0,2.6,-22]},{p:[0,5,14.3],t:[0,5,10]}];
 const beats=[...document.querySelectorAll('.beat')],dots=$('#dots');beats.forEach(()=>dots.appendChild(document.createElement('i')));
-let C=[],sy=scrollY,mx=0,my=0,act=-1;const measure=()=>{C=beats.map(b=>b.offsetTop+b.offsetHeight/2)};measure();addEventListener('load',measure);
-addEventListener('pointermove',e=>{mx=(e.clientX/innerWidth-.5)*.35;my=(e.clientY/innerHeight-.5)*.2},{passive:true});
+let C=[],sy=0,mx=0,my=0,act=-1;const measure=()=>{C=[...track.children].map(b=>b.offsetTop+b.offsetHeight/2)};measure();addEventListener('load',measure);
+addEventListener('pointermove',e=>{if(!mobile){mx=(e.clientX/innerWidth-.5)*.35;my=(e.clientY/innerHeight-.5)*.2}},{passive:true});
 function pos(y){const yc=y+innerHeight/2;if(yc<=C[0])return 0;for(let i=0;i<C.length-1;i++)if(yc<C[i+1]){const f=(yc-C[i])/(C[i+1]-C[i]);return i+sm(clamp((f-.28)/.44))}return C.length-1}
-const look=new THREE.Vector3();let last=performance.now(),lastRender=0;
-function frame(now){requestAnimationFrame(frame);const dt=Math.min(.22,(now-last)/1000);last=now;sy+=(scrollY-sy)*(1-Math.exp(-dt*7));
+const look=new THREE.Vector3();let last=performance.now(),lastRender=0,renderGap=mobile?33:16,slowFrames=0;
+function frame(now){requestAnimationFrame(frame);
+const rect=track.getBoundingClientRect(),visible=rect.top<innerHeight&&rect.bottom>0;
+layer.classList.toggle('is-visible',visible);
+layer.setAttribute('aria-hidden',String(!visible));
+if(!visible||document.hidden){last=now;return}
+if(now-lastRender<renderGap)return;
+const dt=Math.min(.22,(now-last)/1000);last=now;
+// One scroll value drives both camera and captions; no second smoothing clock.
+sy=Math.max(0,-rect.top);
+layer.style.transform='translate3d(0,'+(rect.top>0?rect.top:rect.bottom<innerHeight?rect.bottom-innerHeight:0)+'px,0)';
 const p=pos(sy),i=Math.min(beats.length-2,Math.floor(p)),f=p-i,a=shots[i],b=shots[i+1];
 camera.position.set(lerp(a.p[0],b.p[0],f)+mx,lerp(a.p[1],b.p[1],f)-my*.6,lerp(a.p[2],b.p[2],f));look.set(lerp(a.t[0],b.t[0],f),lerp(a.t[1],b.t[1],f),lerp(a.t[2],b.t[2],f));camera.lookAt(look);
 const near=Math.round(p);focus.position.set(look.x,look.y+1.6,look.z+3.5);focus.intensity=lerp(focus.intensity,near>=3&&near<=6?32:0,dt*4);
@@ -54689,7 +54727,7 @@ const t=now/1000,closeup=(p>=2.75&&p<=5.3)||(p>=5.65&&p<=6.35);machines.forEach(
   // The preceding row can intersect the lens during the three product close-ups.
   m.body.visible=distance>(closeup?1.32:-11)&&distance<47;
   if(!m.body.visible)return;
-  m.bed.visible=distance<15;
+  m.bed.visible=distance<(mobile?10:15);
   m.cl.visible=m.cable.visible=distance<21;
   const x=Math.sin(t*.47+m.seed)*.49;
   const y=3.49-(Math.sin(t*.62+m.seed)*.5+.5)*.31;
@@ -54697,8 +54735,11 @@ const t=now/1000,closeup=(p>=2.75&&p<=5.3)||(p>=5.65&&p<=6.35);machines.forEach(
   m.cable.position.set(x,(3.61+y)/2,.16);m.cable.scale.y=3.61-y;
 });dust.rotation.y=t*.01;dust.position.y=Math.sin(t*.3)*.25;
 if(near!==act){act=near;beats.forEach((e,k)=>e.classList.toggle('active',k===near));[...dots.children].forEach((d,k)=>d.classList.toggle('on',k===near))}
-const pastStory=sy>$('#story').offsetHeight-innerHeight*.3;stage.style.opacity=pastStory?0:1;
-$('#progress').style.width=clamp(scrollY/(document.documentElement.scrollHeight-innerHeight))*100+'%';$('#hint').style.opacity=scrollY>120?0:1;if(!pastStory&&now-lastRender>=28&&!$('#game').classList.contains('open')){renderer.render(scene,camera);lastRender=now;stage.dataset.webgl='ready'}}
+const pastStory=!visible;
+$('#progress').style.width=clamp(scrollY/(document.documentElement.scrollHeight-innerHeight))*100+'%';$('#hint').style.opacity=scrollY>120?0:1;if(!pastStory&&!$('#game').classList.contains('open')){
+const start=performance.now();renderer.render(scene,camera);
+if(mobile&&performance.now()-start>22&&++slowFrames>=12){renderer.setPixelRatio(.75);renderGap=50;layer.dataset.quality='light';slowFrames=0}
+lastRender=now;stage.dataset.webgl='ready'}}
 requestAnimationFrame(frame);
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.fov=innerWidth<760?72:58;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);measure()});
 }
@@ -54706,6 +54747,9 @@ try { initStory(); }
 catch (error) {
   console.warn('3D arcade unavailable',error);
   document.body.classList.add('static-story');
+const layer=document.getElementById('story-layer'),track=document.getElementById('story-space'),beats=[...document.querySelectorAll('#story .beat')];
+const sync=()=>{const r=track.getBoundingClientRect();layer.classList.toggle('is-visible',r.top<innerHeight&&r.bottom>0);const y=-r.top+innerHeight/2;let near=0;[...track.children].forEach((step,i)=>{if(y>=step.offsetTop)near=i});beats.forEach((b,i)=>b.classList.toggle('active',i===near))};
+addEventListener('scroll',sync,{passive:true});sync();
 }
 
 function cnt(el){if(el.dataset.d)return;el.dataset.d=1;const to=+el.dataset.n,dc=+(el.dataset.dec||0),t0=performance.now();(function s(t){const q=Math.min(1,(t-t0)/1400);el.textContent=(to*(1-Math.pow(1-q,3))).toFixed(dc);if(q<1)requestAnimationFrame(s)})(t0)}

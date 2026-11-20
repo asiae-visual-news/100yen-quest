@@ -1,5 +1,5 @@
 
-/* 100yen-quest | fullbleed + natural boundaries | v16 */
+/* 100yen-quest | body fixed stage + synchronized captions | v17 */
 (() => {
   const script = document.currentScript;
   const target = document.getElementById('yen100-quest');
@@ -18,7 +18,7 @@
 
   frame.style.cssText = [
     'display:block', 'position:fixed', 'top:0', 'left:0',
-    'width:100vw', 'height:100vh', 'height:100dvh',
+    'width:100vw', 'height:100vh',
     'border:0', 'margin:0', 'padding:0',
     'background:#0d1626', 'z-index:50',
     'visibility:hidden', 'pointer-events:none'
